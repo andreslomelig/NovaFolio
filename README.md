@@ -1,17 +1,20 @@
 # NovaFolio
 
-**NovaFolio** es un esqueleto multi‑tenant para gestionar **carpetas/casos/documentos** con **búsqueda rápida** (prefijo/parcial tipo “fu…”) y base preparada para **IA (RAG)** y **eventos ICS**.
+**NovaFolio** is a multi-tenant skeleton for managing **folders/cases/documents** with **fast search** (prefix/partial like “fu…”) and a foundation prepared for **AI (RAG)** and **ICS events**.
 
-> Objetivo: que funcione para cualquier negocio (legal, salud, servicios) y, más adelante, permita “abrir y subrayar” el pasaje exacto con IA on‑prem o gestionada.
-
----
-
-## Stack (MVP)
-- **Frontend**: Next.js (TypeScript).
-- **API**: Fastify (TypeScript).
-- **DB**: Postgres 16 con `pg_trgm` (búsqueda por prefijo) y `pgvector` (IA futura).
-- **Infra local**: Docker Compose (Postgres).
+> **Goal**: make it work for any business (legal, healthcare, services) and, later, enable “open and highlight” of the exact passage using on-prem or managed AI.
 
 ---
 
-## Estructura
+## Tech Stack (MVP)
+
+- **Frontend**: Next.js (TypeScript)  
+- **API**: Fastify (TypeScript)  
+- **Database**: Postgres 16 with `pg_trgm` (prefix search) and `pgvector` (future AI)  
+- **Local infrastructure**: Docker Compose (Postgres)  
+
+---
+
+## Structure
+
+_(To be completed with project file/folder details)_
