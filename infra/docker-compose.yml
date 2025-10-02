@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: novafolio-postgres
+    environment:
+      POSTGRES_USER: novafolio
+      POSTGRES_PASSWORD: novafolio
+      POSTGRES_DB: novafolio
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+
+volumes:
+  pgdata:
