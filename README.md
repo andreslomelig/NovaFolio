@@ -24,16 +24,16 @@ Multi‑tenant case & document management system skeleton with **fast prefix sea
 ---
 
 ## Features (MVP)
-- 📂 **Multi-tenant**: clients, cases, documents, notes, and events per tenant.
-- 🔍 **Fast prefix/partial search** using PostgreSQL `pg_trgm` (typing `fu…` finds *Fulanito*).
-- 📅 **Calendar invites via ICS** (works with Gmail/Outlook/iCal; no corporate suite required).
-- 🖥️ **Web UI (Next.js + Tailwind)** for quick search and listing (more screens to come).
-- 🔐 Separation by tenant, codebase prepared for **RBAC** and **auditing**.
+- **Multi-tenant**: clients, cases, documents, notes, and events per tenant.
+- **Fast prefix/partial search** using PostgreSQL `pg_trgm` (typing `fu…` finds *Fulanito*).
+- **Calendar invites via ICS** (works with Gmail/Outlook/iCal; no corporate suite required).
+- **Web UI (Next.js + Tailwind)** for quick search and listing (more screens to come).
+- Separation by tenant, codebase prepared for **RBAC** and **auditing**.
 
 **Future (AI-ready):**
-- 📑 OCR + chunk indexing (store offsets & bounding boxes).
-- 🤖 Retrieval-Augmented Generation (RAG) to find exact paragraphs and open PDFs with highlights.
-- 🔏 Privacy-first modes (no data retention, optional on-device inference).
+- OCR + chunk indexing (store offsets & bounding boxes).
+- Retrieval-Augmented Generation (RAG) to find exact paragraphs and open PDFs with highlights.
+- Privacy-first modes (no data retention, optional on-device inference).
 
 ---
 
