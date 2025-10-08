@@ -1,13 +1,17 @@
-// src/index.ts
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
+import multipart from "@fastify/multipart";
+import fastifyStatic from "@fastify/static";
 import { config } from "dotenv";
 
 import { healthRoutes } from "./routes/health";
 import { clientsRoutes } from "./routes/clients";
+import { casesRoutes } from "./routes/cases";
+import { documentsRoutes } from "./routes/documents";
 import { pingDb, getDefaultTenantId } from "./db";
+import { ensureStorageDir } from "./storage"; 
 
 config();
 
@@ -17,31 +21,31 @@ async function main() {
   await app.register(cors, { origin: true });
   await app.register(swagger, { openapi: { info: { title: "NovaFolio API", version: "0.1.0" } } });
   await app.register(swaggerUi, { routePrefix: "/docs" });
+  await app.register(multipart);
 
-  // Warm-up checks
+  // ⬇️ Resuelve SIEMPRE a ruta absoluta y crea el directorio
+  const storageDir = ensureStorageDir();
+  await app.register(fastifyStatic, { root: storageDir, prefix: "/files/" });
+  app.log.info({ storageDir }, "Serving uploads");
+
+  // Warm-up
   const ok = await pingDb().catch(() => false);
   if (!ok) app.log.error("No se pudo conectar a Postgres. Revisa DATABASE_URL.");
-
-  try {
-    const tid = await getDefaultTenantId();
-    app.log.info({ tenantId: tid }, "Default tenant OK");
-  } catch (e) {
+  const tid = await getDefaultTenantId().catch((e) => {
     app.log.error(e, "No se pudo obtener/crear el tenant por defecto.");
     process.exit(1);
-  }
+  });
+  app.log.info({ tenantId: tid }, "Default tenant OK");
 
-  // Routes
+  // Rutas
   app.register(healthRoutes);
   app.register(clientsRoutes);
+  app.register(casesRoutes);
+  app.register(documentsRoutes);
 
   const port = Number(process.env.PORT || 4000);
-  try {
-    await app.listen({ port, host: "0.0.0.0" });
-    console.log(`API http://localhost:${port} (docs en /docs)`);
-  } catch (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
+  await app.listen({ port, host: "0.0.0.0" });
+  console.log(`API http://localhost:${port} (docs en /docs)`);
 }
 
 main();
