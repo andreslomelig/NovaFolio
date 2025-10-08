@@ -8,18 +8,11 @@ Multi‑tenant case & document management system skeleton with **fast prefix sea
 ## Table of Contents
 - [Features (MVP)](#features-mvp)
 - [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
 - [Quickstart](#quickstart)
   - [Option A — Docker (recommended)](#option-a--docker-recommended)
-  - [Option B — Without Docker (PostgreSQL installed locally)](#option-b--without-docker-postgresql-installed-locally)
-- [Environment Variables](#environment-variables)
-- [Smoke Tests](#smoke-tests)
 - [Project Structure](#project-structure)
-- [Troubleshooting](#troubleshooting)
 - [What’s Missing / Next Steps](#whats-missing--next-steps)
-- [Contributing](#contributing)
-- [License](#license)
 
 ---
 
@@ -42,26 +35,6 @@ Multi‑tenant case & document management system skeleton with **fast prefix sea
 - **Backend:** Fastify (TypeScript), Zod for validation (expand soon), Swagger UI
 - **Database:** PostgreSQL 16 with `pg_trgm` (prefix search) and `pgvector` (for future embeddings)
 - **Infra (local):** Docker Compose (Postgres; optional MinIO later)
-
----
-
-## Architecture
-        [ Web App - Next.js + Tailwind ]
-                     |
-                     v
-        [ API - Fastify (TypeScript) ]
-                     |
-                     v
-   [ PostgreSQL 16 (pg_trgm + pgvector ready) ]
-                     |
-                     v
-   [ Object Store - S3 / MinIO ]   (*future)
-
-
-
-
-- **Now:** Prefix/partial search for clients/cases, basic CRUD (expanding).
-- **Later:** OCR + embeddings + ANN + RAG; PDF open-with-highlight; ICS invites via mail provider.
 
 ---
 
@@ -151,36 +124,6 @@ DATABASE_URL=postgres://novafolio:novafolio@localhost:5432/novafolio
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
 ```
-
-## Project Structure
-```bash
-NovaFolio/
-  apps/
-    api/                 # Fastify API (TypeScript)
-      src/
-        index.ts         # server bootstrap (no top-level await)
-        db.ts            # pg pool + pingDb()
-        routes/
-          health.ts      # GET /healthz
-          clients.ts     # GET /v1/clients?q=...
-      .env.example?      # (optional) sample env file
-      tsconfig.json
-      package.json
-    web/                 # Next.js app (Tailwind, src/ structure)
-      src/app/page.tsx   # search page hitting the API
-      .env.local.example?# (optional) sample env
-      package.json
-  infra/
-    docker-compose.yml   # Postgres (pg_trgm + pgvector), volumes, init scripts
-    postgres/
-      init/
-        0001_init.sql    # schema + extensions
-        0002_seed.sql    # demo data (optional)
-  docs/                  # PRD, DESIGN, RUNBOOK (optional)
-  openapi/               # API contracts (optional)
-
-```
-
 ## What’s Missing / Next Steps
 - CRUD for clients/cases/documents/notes/events (API + Web forms, Zod validation).
 - File uploads + PDF preview (pdf.js) + S3/MinIO storage (versioning).
