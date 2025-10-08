@@ -31,11 +31,27 @@ export default function ClientProfile() {
 
   async function loadDocs(caseId: string) {
     if (!caseId) { setDocs([]); return; }
-    const res = await fetch(`${API}/v1/documents?case_id=${caseId}`);
-    if (!res.ok) return setError('Cannot load documents');
-    const json = await res.json() as { items: Doc[] };
-    setDocs(json.items || []);
+    try {
+      const res = await fetch(`${API}/v1/documents?case_id=${encodeURIComponent(caseId)}`);
+      if (res.status === 404) {
+        // Caso no encontrado (p.ej., se eliminó en otra sesión). En UI, trátalo como "sin docs".
+        setDocs([]);
+        return;
+      }
+      if (!res.ok) {
+        const msg = await res.text();
+        console.error("loadDocs failed:", res.status, msg);
+        setError(`Cannot load documents (${res.status})`);
+        return;
+      }
+      const json = await res.json() as { items: Doc[] };
+      setDocs(json.items || []);
+    } catch (e: any) {
+      console.error("loadDocs exception:", e);
+      setError("Cannot load documents");
+    }
   }
+
 
   useEffect(() => { loadCases(); }, [clientId]);
   useEffect(() => { if (selectedCase) loadDocs(selectedCase); }, [selectedCase]);

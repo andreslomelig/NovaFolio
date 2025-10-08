@@ -50,4 +50,38 @@ export async function documentsRoutes(app: FastifyInstance) {
 
     return reply.status(201).send({ id: ins.rows[0].id, url: publicUrl });
   });
+
+  // Listar documentos por case_id
+  app.get("/v1/documents", async (req, reply) => {
+    try {
+      const { case_id } = (req.query as { case_id?: string }) || {};
+      if (!case_id) return reply.status(400).send({ error: "case_id required" });
+
+      const tenantId = await getDefaultTenantId();
+      req.log.info({ case_id, tenantId }, "documents.list: incoming");
+
+      // verifica pertenencia del caso al tenant
+      const ok = await pool.query(`SELECT 1 FROM cases WHERE id=$1 AND tenant_id=$2`, [case_id, tenantId]);
+      if (ok.rowCount === 0) {
+        req.log.warn({ case_id, tenantId }, "documents.list: case_not_found");
+        return reply.status(404).send({ error: "case_not_found" });
+      }
+
+      const { rows } = await pool.query(
+        `
+        SELECT id::text, name, mime, storage_url, version, created_at
+        FROM documents
+        WHERE tenant_id=$1 AND case_id=$2
+        ORDER BY created_at DESC
+        `,
+        [tenantId, case_id]
+      );
+      req.log.info({ case_id, count: rows.length }, "documents.list: ok");
+      return { items: rows };
+    } catch (err) {
+      req.log.error({ err }, "documents.list: error");
+      return reply.status(500).send({ error: "internal_error" });
+    }
+  });
+
 }
