@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 
+
 type Case = { id: string; title: string; status: string; created_at: string };
 type Doc  = { id: string; name: string; mime: string; storage_url: string; created_at: string };
 
@@ -218,7 +219,7 @@ export default function ClientProfile() {
                 </>
               ) : (
                 <>
-                  <a className="text-sm underline" href={`/doc/${d.id}`}>View</a>
+                  <a className="text-sm underline" href={`/doc/${d.id}?case=${selectedCase}`}>View</a>
                   <a className="text-sm underline" href={`${API}${d.storage_url}`} target="_blank" rel="noreferrer">Open</a>
                   <button className="text-sm underline" onClick={() => startRename(d)}>Rename</button>
                   <button
