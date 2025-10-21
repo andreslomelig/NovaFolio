@@ -1,26 +1,50 @@
 @import "tailwindcss";
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html, body {
+  @apply bg-slate-50 text-slate-800;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Reusable UI primitives */
+.container-page {
+  @apply mx-auto w-full max-w-6xl px-6 py-8;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.card {
+  @apply rounded-lg border border-slate-200 bg-white;
+}
+
+.card-header {
+  @apply px-5 pt-5 pb-3 border-b border-slate-200;
+}
+
+.card-body {
+  @apply p-5;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50;
+}
+
+.btn-primary {
+  @apply border-transparent bg-blue-600 text-white hover:bg-blue-700;
+}
+
+.input {
+  @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-0 focus:border-blue-500 focus:ring-2 focus:ring-blue-200;
+}
+
+.label {
+  @apply text-sm font-medium text-slate-700;
+}
+
+.help {
+  @apply text-xs text-slate-500;
 }
