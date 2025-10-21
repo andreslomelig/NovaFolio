@@ -4,19 +4,20 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const nav = [
-  { label: 'Clients', href: '/clients' },
-  { label: 'Cases',   href: '/cases' },      // (placeholder route for future)
-  { label: 'Documents', href: '/documents' },// (placeholder)
-  { label: 'Calendar', href: '/calendar' },  // (placeholder)
-  { label: 'Settings', href: '/settings' },  // (placeholder)
+  { label: 'Clients',   href: '/clients' },
+  { label: 'Cases',     href: '/cases' },
+  { label: 'Documents', href: '/documents' },
+  { label: 'Calendar',  href: '/calendar' },
+  { label: 'Settings',  href: '/settings' },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-60 shrink-0 border-r border-slate-200 bg-white lg:block">
-      <div className="p-4">
+    <aside className="hidden lg:block border-r border-slate-200 bg-white">
+      {/* Stick the whole sidebar under the topbar and make it scroll if needed */}
+      <div className="sticky top-14 h-[calc(100vh-56px)] w-[240px] overflow-y-auto p-4">
         <div className="text-xs uppercase tracking-wide text-slate-500">Navigation</div>
         <nav className="mt-2 space-y-1">
           {nav.map(item => {

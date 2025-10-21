@@ -15,12 +15,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={inter.className}>
-        <div className="min-h-screen">
-          <Topbar />
-          <div className="mx-auto flex w-full max-w-7xl">
-            <Sidebar />
-            <main className="flex-1">{children}</main>
-          </div>
+        {/* App chrome */}
+        <Topbar />
+        <div className="mx-auto grid w-full max-w-7xl grid-cols-[240px,1fr]">
+          {/* Sidebar sticks below the 56px topbar */}
+          <Sidebar />
+          {/* Main content fills viewport height minus topbar */}
+          <main className="min-h-[calc(100vh-56px)] bg-slate-50">{children}</main>
         </div>
       </body>
     </html>
