@@ -10,9 +10,8 @@ export default function Topbar() {
           NovaFolio
         </Link>
         <div className="flex items-center gap-3">
-          {/* Ghost button so text is visible on white */}
           <Link href="/clients" className="btn btn-ghost">Clients</Link>
-          <Link href="/clients/new" className="btn btn-primary">Add client</Link>
+          <Link href="/clients#add" className="btn btn-primary">Add client</Link>
         </div>
       </div>
     </header>

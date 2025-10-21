@@ -60,7 +60,7 @@ export default function ClientsPage() {
         </div>
 
         {/* Create */}
-        <div className="card">
+        <section className="card" id="add">
           <div className="card-header">
             <div className="text-sm font-semibold">Add a new client</div>
             <p className="help mt-1">Minimal info now; add details later.</p>
@@ -72,7 +72,7 @@ export default function ClientsPage() {
               <button className="btn btn-primary w-full">Create client</button>
             </form>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
