@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 
-type CaseRec = { id: string; client_id: string; title: string; status: string; created_at: string };
+type CaseRec = { id: string; client_id: string; title: string; status: 'open'|'closed'; created_at: string };
 type Client = { id: string; name: string };
 type Doc  = { id: string; name: string; mime: string; storage_url: string; created_at: string };
 
@@ -19,12 +19,18 @@ export default function CasePage() {
   const [rec, setRec] = useState<CaseRec | null>(null);
   const [client, setClient] = useState<Client | null>(null);
 
+  // status editor
+  const [status, setStatus] = useState<'open'|'closed'>('open');
+  const [savingStatus, setSavingStatus] = useState(false);
+
+  // file search + list + upload
   const [q, setQ] = useState('');
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // inline rename/delete
   const [editingId, setEditingId] = useState<string>('');
   const [editingName, setEditingName] = useState<string>('');
   const [busyId, setBusyId] = useState<string>('');
@@ -32,11 +38,12 @@ export default function CasePage() {
   useEffect(() => {
     (async () => {
       setError(null);
+      // load case
       const r = await fetch(`${API}/v1/cases/${caseId}`).catch(()=>null);
       if (r?.ok) {
         const j = await r.json() as CaseRec;
         setRec(j);
-        // load client name for breadcrumb
+        setStatus(j.status);
         const cid = j.client_id || clientFromQuery;
         if (cid) {
           const rc = await fetch(`${API}/v1/clients/${cid}`).catch(()=>null);
@@ -54,7 +61,6 @@ export default function CasePage() {
   }, [caseId]);
 
   async function loadDocs(query?: string) {
-    if (!caseId) return;
     setLoading(true);
     setError(null);
     try {
@@ -73,6 +79,25 @@ export default function CasePage() {
     }
   }
 
+  // status change (PATCH /v1/cases/:id)
+  async function saveStatus(newStatus: 'open'|'closed') {
+    setSavingStatus(true); setError(null);
+    try {
+      const res = await fetch(`${API}/v1/cases/${caseId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (!res.ok) throw new Error(`Status update failed (${res.status})`);
+      setStatus(newStatus);
+    } catch (e:any) {
+      setError(e.message || 'Status update failed');
+    } finally {
+      setSavingStatus(false);
+    }
+  }
+
+  // upload
   async function uploadDoc(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
@@ -87,11 +112,12 @@ export default function CasePage() {
     await loadDocs(q);
   }
 
+  // rename/delete
   function startRename(d: Doc) { setEditingId(d.id); setEditingName(d.name); }
   function cancelRename() { setEditingId(''); setEditingName(''); }
   async function saveRename(id: string) {
     if (!editingName.trim()) return;
-    setBusyId(id);
+    setBusyId(id); setError(null);
     const res = await fetch(`${API}/v1/documents/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: editingName.trim() })
@@ -103,7 +129,7 @@ export default function CasePage() {
   }
   async function deleteDoc(id: string) {
     if (!confirm('Delete this document?')) return;
-    setBusyId(id);
+    setBusyId(id); setError(null);
     const res = await fetch(`${API}/v1/documents/${id}`, { method: 'DELETE' });
     setBusyId('');
     if (!res.ok) { setError(`Delete failed (${res.status})`); return; }
@@ -112,13 +138,25 @@ export default function CasePage() {
 
   return (
     <div className="container-page space-y-6">
-      {/* Header + breadcrumb */}
-      <div className="flex items-start justify-between">
+      {/* Header + breadcrumb + status control */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{rec?.title ?? 'Case'}</h1>
-          <p className="help mt-1">Status: {rec?.status ?? '-'}</p>
+          <p className="help mt-1">Manage files for this case.</p>
         </div>
+
         <div className="flex items-center gap-2">
+          <label className="label">Status</label>
+          <select
+            className="input"
+            value={status}
+            onChange={(e)=>saveStatus(e.target.value as 'open'|'closed')}
+            disabled={savingStatus}
+          >
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+          </select>
+
           {client && <Link href={`/client/${client.id}`} className="btn">Back to {client.name}</Link>}
           <Link href="/clients" className="btn">Clients</Link>
         </div>
@@ -126,11 +164,11 @@ export default function CasePage() {
 
       {/* Search + Upload + List */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Search files */}
+        {/* Search files + list */}
         <section className="card lg:col-span-2">
           <div className="card-header">
             <div className="text-sm font-semibold">Search files</div>
-            <p className="help mt-1">Filter by file name.</p>
+            <p className="help mt-1">Filter by file name. Click a file to view.</p>
           </div>
           <div className="card-body">
             <form onSubmit={(e)=>{e.preventDefault(); loadDocs(q);}} className="flex flex-col gap-2 sm:flex-row">
@@ -159,7 +197,9 @@ export default function CasePage() {
                       </>
                     ) : (
                       <>
+                        {/* View inside the app (PDF viewer). Include case param for fallback */}
                         <Link className="text-sm text-blue-700 underline" href={`/doc/${d.id}?case=${caseId}`}>View</Link>
+                        {/* Open raw file in new tab */}
                         <a className="text-sm underline" href={`${API}${d.storage_url}`} target="_blank" rel="noreferrer">Open</a>
                         <button className="text-sm underline" onClick={() => startRename(d)}>Rename</button>
                         <button className="text-sm underline text-rose-600" onClick={() => deleteDoc(d.id)} disabled={busyId===d.id}>Delete</button>
