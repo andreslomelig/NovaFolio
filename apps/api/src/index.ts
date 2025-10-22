@@ -18,7 +18,14 @@ config();
 async function main() {
   const app = Fastify({ logger: true });
 
-  await app.register(cors, { origin: true });
+  await app.register(cors, {
+    origin: true, // refleja el Origin que llega (localhost, 192.168.x.x)
+    methods: ["GET", "POST", "PATCH", "DELETE", "PUT", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+    exposedHeaders: ["Content-Length", "ETag"],
+    credentials: true,
+    maxAge: 86400, // cachea la respuesta de preflight 1 día
+  });
   await app.register(swagger, { openapi: { info: { title: "NovaFolio API", version: "0.1.0" } } });
   await app.register(swaggerUi, { routePrefix: "/docs" });
   await app.register(multipart);

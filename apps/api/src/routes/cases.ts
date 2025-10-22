@@ -1,4 +1,3 @@
-// apps/api/src/routes/cases.ts
 import { FastifyInstance } from "fastify";
 import { pool, getDefaultTenantId } from "../db";
 import { z } from "zod";
@@ -8,18 +7,15 @@ const CreateCaseSchema = z.object({
   title: z.string().min(1).max(200),
   status: z.enum(["open","closed"]).default("open").optional()
 });
-
 const UpdateCaseSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   status: z.enum(["open","closed"]).optional()
 });
 
 export async function casesRoutes(app: FastifyInstance) {
-  // list/search cases for a client
   app.get("/v1/cases", async (req, reply) => {
     const { client_id, q } = (req.query as { client_id?: string; q?: string }) || {};
     if (!client_id) return reply.status(400).send({ error: "client_id required" });
-
     const tenantId = await getDefaultTenantId();
     const term = (q ?? "").trim().toLowerCase();
 
@@ -45,7 +41,6 @@ export async function casesRoutes(app: FastifyInstance) {
     return { items: rows };
   });
 
-  // get case by id
   app.get("/v1/cases/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const tenantId = await getDefaultTenantId();
@@ -58,11 +53,9 @@ export async function casesRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
-  // create case
   app.post("/v1/cases", async (req, reply) => {
     const parse = CreateCaseSchema.safeParse(req.body);
     if (!parse.success) return reply.status(400).send({ error: parse.error.flatten() });
-
     const { client_id, title, status } = parse.data;
     const tenantId = await getDefaultTenantId();
 
@@ -77,7 +70,7 @@ export async function casesRoutes(app: FastifyInstance) {
     return reply.status(201).send({ id: ins.rows[0].id });
   });
 
-  // update case (title/status)
+  // PATCH title / status
   app.patch("/v1/cases/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const parse = UpdateCaseSchema.safeParse(req.body);
@@ -86,7 +79,7 @@ export async function casesRoutes(app: FastifyInstance) {
 
     const tenantId = await getDefaultTenantId();
     const sets: string[] = [];
-    const params: any[] = [id, tenantId]; // $1 id, $2 tenant
+    const params: any[] = [id, tenantId];
 
     if (parse.data.title !== undefined)  { params.push(parse.data.title.trim()); sets.push(`title = $${params.length}`); }
     if (parse.data.status !== undefined) { params.push(parse.data.status);       sets.push(`status = $${params.length}`); }

@@ -22,6 +22,7 @@ export default function CasePage() {
   // status editor
   const [status, setStatus] = useState<'open'|'closed'>('open');
   const [savingStatus, setSavingStatus] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // file search + list + upload
   const [q, setQ] = useState('');
@@ -101,16 +102,24 @@ export default function CasePage() {
   async function uploadDoc(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
+    setUploading(true);
     setError(null);
-    const fd = new FormData();
-    fd.append('case_id', caseId);
-    fd.append('file', file);
-    const res = await fetch(`${API}/v1/documents/upload`, { method: 'POST', body: fd });
-    if (!res.ok) { setError('Upload failed'); return; }
-    setFile(null);
-    (e.target as HTMLFormElement).reset();
-    await loadDocs(q);
+    try {
+      const fd = new FormData();
+      fd.append('case_id', caseId);
+      fd.append('file', file);
+      const res = await fetch(`${API}/v1/documents/upload`, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('Upload failed');
+      setFile(null);
+      (e.target as HTMLFormElement).reset();
+      await loadDocs(q);
+    } catch (err:any) {
+      setError(err.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
   }
+
 
   // rename/delete
   function startRename(d: Doc) { setEditingId(d.id); setEditingName(d.name); }
@@ -222,12 +231,20 @@ export default function CasePage() {
             <p className="help mt-1">PDF only (demo). Drag & drop coming soon.</p>
           </div>
           <div className="card-body">
-            <form onSubmit={uploadDoc} className="space-y-2">
+            <form onSubmit={uploadDoc} className="space-y-3">
               <div className="rounded-md border-2 border-dashed border-slate-300 bg-slate-50 p-4">
-                <input type="file" accept="application/pdf" onChange={(e)=>setFile(e.target.files?.[0] ?? null)} />
-                <p className="help mt-1">Max 25MB (demo).</p>
+                <input id="file-input" type="file" accept="application/pdf"
+                      onChange={(e)=>setFile(e.target.files?.[0] ?? null)}
+                      className="sr-only" />
+                <label htmlFor="file-input" className="btn">
+                  {file ? 'Choose another file' : 'Choose file'}
+                </label>
+                {file && <div className="mt-2 text-sm text-slate-700">Selected: <strong>{file.name}</strong></div>}
+                <p className="help mt-1">Max 25MB.</p>
               </div>
-              <button className="btn btn-primary" disabled={!file}>Upload</button>
+              <button className="btn btn-primary" disabled={!file || uploading}>
+                {uploading ? 'Uploading…' : 'Upload'}
+              </button>
             </form>
           </div>
         </section>

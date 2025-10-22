@@ -1,4 +1,3 @@
-// apps/api/src/routes/documents.ts
 import { FastifyInstance } from "fastify";
 import { pool, getDefaultTenantId } from "../db";
 import { pipeline } from "node:stream/promises";
@@ -13,52 +12,40 @@ function sanitize(name: string) {
 }
 
 export async function documentsRoutes(app: FastifyInstance) {
-  // List documents by case_id (+ optional q)
+  // Listar (con search opcional ?q=)
   app.get("/v1/documents", async (req, reply) => {
-    try {
-      const { case_id, q } = (req.query as { case_id?: string; q?: string }) || {};
-      if (!case_id) return reply.status(400).send({ error: "case_id required" });
+    const { case_id, q } = (req.query as { case_id?: string; q?: string }) || {};
+    if (!case_id) return reply.status(400).send({ error: "case_id required" });
 
-      const tenantId = await getDefaultTenantId();
-      const ok = await pool.query(`SELECT 1 FROM cases WHERE id=$1 AND tenant_id=$2`, [case_id, tenantId]);
-      if (ok.rowCount === 0) return reply.status(404).send({ error: "case_not_found" });
+    const tenantId = await getDefaultTenantId();
+    const ok = await pool.query(`SELECT 1 FROM cases WHERE id=$1 AND tenant_id=$2`, [case_id, tenantId]);
+    if (!ok.rowCount) return reply.status(404).send({ error: "case_not_found" });
 
-      const term = (q ?? "").trim().toLowerCase();
+    const term = (q ?? "").trim().toLowerCase();
 
-      if (term) {
-        const { rows } = await pool.query(
-          `
+    const { rows } = await pool.query(
+      term
+        ? `
           SELECT id::text, case_id::text, name, mime, storage_url, version, created_at
           FROM documents
           WHERE tenant_id=$1 AND case_id=$2
             AND (lower(name) LIKE $3 OR similarity(lower(name), $4) > 0.3)
           ORDER BY created_at DESC
-          `,
-          [tenantId, case_id, term + "%", term]
-        );
-        return { items: rows };
-      } else {
-        const { rows } = await pool.query(
-          `
+        `
+        : `
           SELECT id::text, case_id::text, name, mime, storage_url, version, created_at
           FROM documents
           WHERE tenant_id=$1 AND case_id=$2
           ORDER BY created_at DESC
-          `,
-          [tenantId, case_id]
-        );
-        return { items: rows };
-      }
-    } catch (err) {
-      req.log.error({ err }, "documents.list: error");
-      return reply.status(500).send({ error: "internal_error" });
-    }
+        `,
+      term ? [tenantId, case_id, term + "%", term] : [tenantId, case_id]
+    );
+    return { items: rows };
   });
 
-  // Upload document (PDF)
+  // Upload PDF
   app.post("/v1/documents/upload", async (req, reply) => {
     const tenantId = await getDefaultTenantId();
-
     const mp = await req.file();
     if (!mp) return reply.status(400).send({ error: "multipart_file_required" });
 
@@ -66,12 +53,10 @@ export async function documentsRoutes(app: FastifyInstance) {
     if (!case_id) return reply.status(400).send({ error: "case_id required" });
 
     const ok = await pool.query(`SELECT 1 FROM cases WHERE id=$1 AND tenant_id=$2`, [case_id, tenantId]);
-    if (ok.rowCount === 0) return reply.status(404).send({ error: "case_not_found" });
+    if (!ok.rowCount) return reply.status(404).send({ error: "case_not_found" });
 
     const mime = mp.mimetype || "application/octet-stream";
-    if (!mime.startsWith("application/pdf")) {
-      return reply.status(415).send({ error: "only_pdf_supported_for_now" });
-    }
+    if (!mime.startsWith("application/pdf")) return reply.status(415).send({ error: "only_pdf_supported_for_now" });
 
     const storageDir = ensureStorageDir();
     const id = crypto.randomUUID();
@@ -81,7 +66,6 @@ export async function documentsRoutes(app: FastifyInstance) {
     const publicUrl = `/files/${baseName}`;
 
     await pipeline(mp.file, fs.createWriteStream(destPath));
-
     const ins = await pool.query<{ id: string }>(
       `
       INSERT INTO documents (tenant_id, case_id, name, mime, storage_url, sha256, version, created_by)
@@ -90,27 +74,23 @@ export async function documentsRoutes(app: FastifyInstance) {
       `,
       [tenantId, case_id, safeName, mime, publicUrl]
     );
-
     return reply.status(201).send({ id: ins.rows[0].id, url: publicUrl });
   });
 
-  // Get doc by id
+  // Get por id
   app.get("/v1/documents/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const tenantId = await getDefaultTenantId();
     const { rows } = await pool.query(
-      `
-      SELECT id::text, case_id::text, name, mime, storage_url, version, created_at
-      FROM documents
-      WHERE id=$1 AND tenant_id=$2
-      `,
+      `SELECT id::text, case_id::text, name, mime, storage_url, version, created_at
+       FROM documents WHERE id=$1 AND tenant_id=$2`,
       [id, tenantId]
     );
     if (!rows.length) return reply.status(404).send({ error: "not_found" });
     return rows[0];
   });
 
-  // Rename
+  // PATCH rename
   app.patch("/v1/documents/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const bodySchema = z.object({ name: z.string().min(1).max(255) });
@@ -126,23 +106,42 @@ export async function documentsRoutes(app: FastifyInstance) {
     return reply.status(204).send();
   });
 
-  // Delete (db + file)
+
+  // DELETE (db + file no-bloqueante + logs)
   app.delete("/v1/documents/:id", async (req, reply) => {
-    const { id } = req.params as { id: string };
-    const tenantId = await getDefaultTenantId();
+    try {
+      const { id } = req.params as { id: string };
+      const tenantId = await getDefaultTenantId();
 
-    const sel = await pool.query<{ storage_url: string }>(
-      `SELECT storage_url FROM documents WHERE id=$1 AND tenant_id=$2`,
-      [id, tenantId]
-    );
-    if (!sel.rowCount) return reply.status(404).send({ error: "not_found" });
+      // 1) obtener la ruta del archivo
+      const sel = await pool.query<{ storage_url: string }>(
+        `SELECT storage_url FROM documents WHERE id=$1 AND tenant_id=$2`,
+        [id, tenantId]
+      );
+      if (!sel.rowCount) return reply.status(404).send({ error: "not_found" });
 
-    const storageUrl = sel.rows[0].storage_url;
-    const abs = pathFromStorageUrl(storageUrl);
+      const storageUrl = sel.rows[0].storage_url;
+      const absPath = pathFromStorageUrl(storageUrl);
 
-    await pool.query(`DELETE FROM documents WHERE id=$1 AND tenant_id=$2`, [id, tenantId]);
-    try { if (fs.existsSync(abs)) fs.rmSync(abs); } catch { /* ignore */ }
+      // 2) borrar en DB primero (idempotente respecto al archivo)
+      const del = await pool.query(`DELETE FROM documents WHERE id=$1 AND tenant_id=$2`, [id, tenantId]);
+      if (!del.rowCount) return reply.status(404).send({ error: "not_found" });
 
-    return reply.status(204).send();
+      // 3) borrar archivo en background, sin bloquear la respuesta
+      setImmediate(() => {
+        try {
+          if (fs.existsSync(absPath)) fs.rmSync(absPath);
+          req.log.info({ absPath }, "documents.delete: file_removed");
+        } catch (e) {
+          req.log.warn({ absPath, e }, "documents.delete: file_remove_failed");
+        }
+      });
+
+      return reply.status(204).send();
+    } catch (err) {
+      req.log.error({ err }, "documents.delete: error");
+      return reply.status(500).send({ error: "internal_error" });
+    }
   });
+
 }
