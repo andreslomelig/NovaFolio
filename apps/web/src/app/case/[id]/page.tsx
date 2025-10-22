@@ -122,27 +122,47 @@ export default function CasePage() {
 
 
   // rename/delete
-  function startRename(d: Doc) { setEditingId(d.id); setEditingName(d.name); }
-  function cancelRename() { setEditingId(''); setEditingName(''); }
+  function startRename(d: Doc) {
+    setEditingId(d.id);
+    setEditingName(d.name);
+  }
+
+  function cancelRename() {
+    setEditingId('');
+    setEditingName('');
+  }
+
   async function saveRename(id: string) {
     if (!editingName.trim()) return;
     setBusyId(id); setError(null);
-    const res = await fetch(`${API}/v1/documents/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editingName.trim() })
-    });
-    setBusyId('');
-    if (!res.ok) { setError(`Rename failed (${res.status})`); return; }
-    setEditingId(''); setEditingName('');
-    await loadDocs(q);
+    try {
+      const res = await fetch(`${API}/v1/documents/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editingName.trim() })
+      });
+      if (!res.ok) throw new Error(`Rename failed (${res.status})`);
+      setEditingId(''); setEditingName('');
+      await loadDocs(q);
+    } catch (e:any) {
+      setError(e.message || 'Rename failed');
+    } finally {
+      setBusyId('');   // <- IMPORTANT: release the row
+    }
   }
+
   async function deleteDoc(id: string) {
     if (!confirm('Delete this document?')) return;
     setBusyId(id); setError(null);
-    const res = await fetch(`${API}/v1/documents/${id}`, { method: 'DELETE' });
-    setBusyId('');
-    if (!res.ok) { setError(`Delete failed (${res.status})`); return; }
-    await loadDocs(q);
+    try {
+      const res = await fetch(`${API}/v1/documents/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      await loadDocs(q);
+    } catch (e:any) {
+      setError(e.message || 'Delete failed');
+    } finally {
+      setBusyId('');   // <- IMPORTANT: release the row
+    }
   }
 
   return (
@@ -201,19 +221,51 @@ export default function CasePage() {
                   <div className="flex items-center gap-3 shrink-0">
                     {editingId === d.id ? (
                       <>
-                        <button className="btn" onClick={() => saveRename(d.id)} disabled={busyId===d.id}>Save</button>
-                        <button className="btn" onClick={cancelRename}>Cancel</button>
+                        <button
+                          className="btn"
+                          onClick={() => saveRename(d.id)}
+                          disabled={busyId === d.id}
+                        >
+                          {busyId === d.id ? 'Saving…' : 'Save'}
+                        </button>
+
+                        <button
+                          className="btn"
+                          onClick={cancelRename}
+                          disabled={busyId === d.id}
+                        >
+                          Cancel
+                        </button>
                       </>
                     ) : (
                       <>
                         {/* View inside the app (PDF viewer). Include case param for fallback */}
-                        <Link className="text-sm text-blue-700 underline" href={`/doc/${d.id}?case=${caseId}`}>View</Link>
-                        {/* Open raw file in new tab */}
-                        <a className="text-sm underline" href={`${API}${d.storage_url}`} target="_blank" rel="noreferrer">Open</a>
-                        <button className="text-sm underline" onClick={() => startRename(d)}>Rename</button>
-                        <button className="text-sm underline text-rose-600" onClick={() => deleteDoc(d.id)} disabled={busyId===d.id}>Delete</button>
+                        <Link className="link-action" href={`/doc/${d.id}?case=${caseId}`}>View</Link>
+
+                        {/* Open the raw file in a new tab */}
+                        <a className="link-action" href={`${API}${d.storage_url}`} target="_blank" rel="noreferrer">Open</a>
+
+                        {/* Enter rename mode */}
+                        <button
+                          className="link-action"
+                          onClick={() => startRename(d)}
+                          disabled={busyId === d.id}
+                        >
+                          Rename
+                        </button>
+
+                        {/* Delete (destructive button) */}
+                        <button
+                          className="btn btn-danger"
+                          title="Delete file"
+                          onClick={() => deleteDoc(d.id)}
+                          disabled={busyId === d.id}
+                        >
+                          {busyId === d.id ? 'Deleting…' : 'Delete'}
+                        </button>
                       </>
                     )}
+
                   </div>
                 </div>
               ))}
