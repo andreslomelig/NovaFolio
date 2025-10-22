@@ -15,9 +15,9 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden lg:block border-r border-slate-200 bg-white">
-      {/* Stick the whole sidebar under the topbar and make it scroll if needed */}
-      <div className="sticky top-14 h-[calc(100vh-56px)] w-[240px] overflow-y-auto p-4">
+    <aside className="hidden lg:block shrink-0 border-r border-slate-200 bg-white w-[240px]">
+      {/* Pegada bajo el topbar (56px) y con scroll propio */}
+      <div className="sticky top-14 h-[calc(100vh-56px)] overflow-y-auto p-4">
         <div className="text-xs uppercase tracking-wide text-slate-500">Navigation</div>
         <nav className="mt-2 space-y-1">
           {nav.map(item => {
