@@ -1,6 +1,8 @@
 import { FastifyInstance } from "fastify";
 import { pool, getDefaultTenantId } from "../db";
 import { z } from "zod";
+import fs from "node:fs";
+import { pathFromStorageUrl } from "../storage";
 
 const CreateCaseSchema = z.object({
   client_id: z.string().uuid(),
@@ -90,5 +92,48 @@ export async function casesRoutes(app: FastifyInstance) {
     );
     if (!rowCount) return reply.status(404).send({ error: "not_found" });
     return reply.status(204).send();
+  });
+
+  app.delete("/v1/cases/:id", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const tenantId = await getDefaultTenantId();
+
+    const cx = await pool.connect();
+    try {
+      await cx.query("BEGIN");
+
+      // 1) Recolectar archivos de los documentos del caso
+      const docs = await cx.query<{ storage_url: string }>(
+        `SELECT storage_url FROM documents WHERE tenant_id=$1 AND case_id=$2`,
+        [tenantId, id]
+      );
+      const filePaths = docs.rows.map(r => pathFromStorageUrl(r.storage_url));
+
+      // 2) Borrar documentos y el caso
+      await cx.query(`DELETE FROM documents WHERE tenant_id=$1 AND case_id=$2`, [tenantId, id]);
+      const delCase = await cx.query(`DELETE FROM cases WHERE id=$1 AND tenant_id=$2`, [id, tenantId]);
+      if (!delCase.rowCount) {
+        await cx.query("ROLLBACK");
+        return reply.status(404).send({ error: "not_found" });
+      }
+
+      await cx.query("COMMIT");
+
+      // 3) Borrar archivos fuera de la transacción (no bloquea el 204)
+      setImmediate(() => {
+        for (const p of filePaths) {
+          try { if (fs.existsSync(p)) fs.rmSync(p); }
+          catch (e) { req.log.warn({ p, e }, "cases.delete file_remove_failed"); }
+        }
+      });
+
+      return reply.status(204).send();
+    } catch (err) {
+      await cx.query("ROLLBACK");
+      req.log.error({ err }, "cases.delete error");
+      return reply.status(500).send({ error: "internal_error" });
+    } finally {
+      cx.release();
+    }
   });
 }

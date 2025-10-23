@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 type CaseRec = { id: string; client_id: string; title: string; status: 'open'|'closed'; created_at: string };
 type Client = { id: string; name: string };
@@ -15,6 +16,7 @@ export default function CasePage() {
   const sp = useSearchParams();
   const caseId = params.id;
   const clientFromQuery = sp.get('client') || '';
+  const router = useRouter();
 
   const [rec, setRec] = useState<CaseRec | null>(null);
   const [client, setClient] = useState<Client | null>(null);
@@ -35,6 +37,8 @@ export default function CasePage() {
   const [editingId, setEditingId] = useState<string>('');
   const [editingName, setEditingName] = useState<string>('');
   const [busyId, setBusyId] = useState<string>('');
+
+  const [deletingCase, setDeletingCase] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -120,6 +124,22 @@ export default function CasePage() {
     }
   }
 
+  async function deleteCase() {
+    if (!rec) return;
+    if (!confirm(`Delete case "${rec.title}" and all its documents? This cannot be undone.`)) return;
+    setDeletingCase(true);
+    try {
+      const res = await fetch(`${API}/v1/cases/${caseId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      if (client) router.push(`/client/${client.id}`);
+      else router.push('/clients');
+    } catch (e:any) {
+      setError(e.message || 'Delete failed');
+    } finally {
+      setDeletingCase(false);
+    }
+  }
+
 
   // rename/delete
   function startRename(d: Doc) {
@@ -188,6 +208,13 @@ export default function CasePage() {
 
           {client && <Link href={`/client/${client.id}`} className="btn">Back to {client.name}</Link>}
           <Link href="/clients" className="btn">Clients</Link>
+            <button
+              className="btn btn-danger"
+              onClick={deleteCase}
+              disabled={deletingCase}
+            >
+              {deletingCase ? 'Deleting…' : 'Delete case'}
+          </button>
         </div>
       </div>
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 type Client = { id: string; name: string };
 type Case = { id: string; title: string; status: string; created_at: string };
@@ -22,6 +23,9 @@ export default function ClientCasesPage() {
   const [title, setTitle] = useState('');
   const [status, setStatus] = useState('open');
   const [error, setError] = useState<string | null>(null);
+
+  const router = useRouter();
+  const [deletingClient, setDeletingClient] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -70,6 +74,21 @@ export default function ClientCasesPage() {
     }
   }
 
+  async function deleteClient() {
+    if (!client) return;
+    if (!confirm(`Delete client "${client.name}" and ALL its cases & documents? This cannot be undone.`)) return;
+    setDeletingClient(true);
+    try {
+      const res = await fetch(`${API}/v1/clients/${clientId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      router.push('/clients');
+    } catch (e:any) {
+      setError(e.message || 'Delete failed');
+    } finally {
+      setDeletingClient(false);
+    }
+  }
+
   return (
     <div className="container-page space-y-6">
       <div className="flex items-start justify-between">
@@ -78,6 +97,14 @@ export default function ClientCasesPage() {
           <p className="help mt-1">Search and manage cases for this client.</p>
         </div>
         <Link href="/clients" className="btn">Back to list</Link>
+
+      <button
+        className="btn btn-danger"
+        onClick={deleteClient}
+        disabled={deletingClient}
+      >
+        {deletingClient ? 'Deleting…' : 'Delete client'}
+      </button>      
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

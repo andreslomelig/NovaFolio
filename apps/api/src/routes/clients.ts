@@ -2,6 +2,8 @@
 import { FastifyInstance } from "fastify";
 import { pool, getDefaultTenantId } from "../db";
 import { z } from "zod";
+import fs from "node:fs";
+import { pathFromStorageUrl } from "../storage";
 
 const CreateClientSchema = z.object({
   name: z.string().min(1).max(200),
@@ -93,8 +95,55 @@ export async function clientsRoutes(app: FastifyInstance) {
   app.delete("/v1/clients/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const tenantId = await getDefaultTenantId();
-    const { rowCount } = await pool.query(`DELETE FROM clients WHERE id=$1 AND tenant_id=$2`, [id, tenantId]);
-    if (!rowCount) return reply.status(404).send({ error: "not_found" });
-    return reply.status(204).send();
+
+    const cx = await pool.connect();
+    try {
+      await cx.query("BEGIN");
+
+      // 1) Traer todos los archivos de todos los docs de los casos de este cliente
+      const docFiles = await cx.query<{ storage_url: string }>(
+        `
+        SELECT d.storage_url
+        FROM documents d
+        WHERE d.tenant_id=$1 AND d.case_id IN (
+          SELECT c.id FROM cases c WHERE c.tenant_id=$1 AND c.client_id=$2
+        )
+        `,
+        [tenantId, id]
+      );
+      const filePaths = docFiles.rows.map(r => pathFromStorageUrl(r.storage_url));
+
+      // 2) Borrar documentos, luego casos, luego cliente
+      await cx.query(
+        `DELETE FROM documents
+        WHERE tenant_id=$1 AND case_id IN (SELECT id FROM cases WHERE tenant_id=$1 AND client_id=$2)`,
+        [tenantId, id]
+      );
+      await cx.query(`DELETE FROM cases WHERE tenant_id=$1 AND client_id=$2`, [tenantId, id]);
+
+      const delClient = await cx.query(`DELETE FROM clients WHERE id=$1 AND tenant_id=$2`, [id, tenantId]);
+      if (!delClient.rowCount) {
+        await cx.query("ROLLBACK");
+        return reply.status(404).send({ error: "not_found" });
+      }
+
+      await cx.query("COMMIT");
+
+      // 3) Borrado de archivos en background
+      setImmediate(() => {
+        for (const p of filePaths) {
+          try { if (fs.existsSync(p)) fs.rmSync(p); }
+          catch (e) { req.log.warn({ p, e }, "clients.delete file_remove_failed"); }
+        }
+      });
+
+      return reply.status(204).send();
+    } catch (err) {
+      await cx.query("ROLLBACK");
+      req.log.error({ err }, "clients.delete error");
+      return reply.status(500).send({ error: "internal_error" });
+    } finally {
+      cx.release();
+    }
   });
 }
