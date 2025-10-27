@@ -96,16 +96,15 @@ export default function ClientCasesPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{client?.name ?? 'Client'}</h1>
           <p className="help mt-1">Search and manage cases for this client.</p>
         </div>
-        <Link href="/clients" className="btn">Back to list</Link>
-
-      <button
-        className="btn btn-danger"
-        onClick={deleteClient}
-        disabled={deletingClient}
-      >
-        {deletingClient ? 'Deleting…' : 'Delete client'}
-      </button>      
-      </div>
+        <button
+          className="btn btn-danger"
+          onClick={deleteClient}
+          disabled={deletingClient}
+        >
+          {deletingClient ? 'Deleting…' : 'Delete client'}
+        </button>   
+        <Link href="/clients" className="btn">Back to list</Link>   
+        </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Search + list */}
