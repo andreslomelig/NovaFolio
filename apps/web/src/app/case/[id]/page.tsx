@@ -312,9 +312,13 @@ export default function CasePage() {
           <div className="card-body">
             <form onSubmit={uploadDoc} className="space-y-3">
               <div className="rounded-md border-2 border-dashed border-slate-300 bg-slate-50 p-4">
-                <input id="file-input" type="file" accept="application/pdf"
-                      onChange={(e)=>setFile(e.target.files?.[0] ?? null)}
-                      className="sr-only" />
+                <input
+                  id="file-input"
+                  type="file"
+                  accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(e)=>setFile(e.target.files?.[0] ?? null)}
+                  className="sr-only"
+                />
                 <label htmlFor="file-input" className="btn">
                   {file ? 'Choose another file' : 'Choose file'}
                 </label>

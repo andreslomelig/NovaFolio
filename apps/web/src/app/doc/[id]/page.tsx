@@ -37,25 +37,49 @@ export default function DocPage() {
         }
       }
       setError(`Failed to load (${res.status})`);
-    } catch (e: any) {
+    } catch (e:any) {
       setError(e?.message || 'Network error');
     }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [docId, caseId]);
 
   const fileUrl = doc ? `${API}${doc.storage_url}` : '';
+  const isPdf  = doc?.mime?.startsWith('application/pdf');
+  const isDocx = doc?.mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const docxHtmlUrl = `${API}/v1/documents/${docId}/html`;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">{doc?.name ?? 'Document'}</h1>
-        <button onClick={() => router.back()} className="rounded-md border px-3 py-1 text-sm">Back</button>
+        <button onClick={() => router.back()} className="btn">Back</button>
       </div>
 
-      {error && <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
 
-      {doc && <PdfViewer url={fileUrl} initialQuery={initialQuery} />}
-      {!doc && !error && <p className="text-sm text-gray-500">Loading…</p>}
+      {doc && isPdf && <PdfViewer url={fileUrl} initialQuery={initialQuery} />}
+
+      {doc && isDocx && (
+        <div className="card">
+          <div className="card-header"><div className="text-sm font-semibold">DOCX preview</div></div>
+          <div className="card-body">
+            <iframe
+              src={docxHtmlUrl}
+              title={doc.name}
+              style={{ width: '100%', height: '70vh', border: '1px solid #e5e7eb', borderRadius: 8 }}
+            />
+            <div className="mt-3">
+              <a className="link-action" href={fileUrl} target="_blank" rel="noreferrer">Open original (.docx)</a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {doc && !isPdf && !isDocx && (
+        <div className="help">Unsupported preview. <a className="link-action" href={fileUrl} target="_blank" rel="noreferrer">Download</a></div>
+      )}
+
+      {!doc && !error && <p className="help">Loading…</p>}
     </main>
   );
 }
