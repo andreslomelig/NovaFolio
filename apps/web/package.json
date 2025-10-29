@@ -6,11 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "postinstall": "node scripts/copy-pdf-worker.mjs"
+    "postinstall": "node scripts/copy-pdfjs-v5-viewer.mjs"
   },
   "dependencies": {
+    "@react-pdf-viewer/core": "3.12.0",
+    "@react-pdf-viewer/default-layout": "3.12.0",
+    "@react-pdf-viewer/search": "3.12.0",
     "next": "15.5.4",
-    "pdfjs-dist": "3.10.111",
+    "pdfjs-dist": "3.11.174",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
