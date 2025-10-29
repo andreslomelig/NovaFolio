@@ -1,134 +1,114 @@
-# NovaFolio
+# NovaFolio — Intelligent Client & Document Management System
 
-**NovaFolio — a flexible backbone for managing folders, cases, and documents, built for speed and AI.**  
-Multi‑tenant case & document management system skeleton with **fast prefix search**, **calendar invites (ICS)**, and an **AI‑ready** architecture (OCR + RAG in future phases).
-
----
-
-## Table of Contents
-- [Features (MVP)](#features-mvp)
-- [Tech Stack](#tech-stack)
-- [Prerequisites](#prerequisites)
-- [Quickstart](#quickstart)
-  - [Option A — Docker (recommended)](#option-a--docker-recommended)
-- [Project Structure](#project-structure)
-- [What’s Missing / Next Steps](#whats-missing--next-steps)
+> **Full-stack project** designed to demonstrate applied engineering and AI capabilities.  
+> Built with modern TypeScript tooling, a scalable monorepo architecture, and focus on real-world performance and maintainability.
 
 ---
 
-## Features (MVP)
-- **Multi-tenant**: clients, cases, documents, notes, and events per tenant.
-- **Fast prefix/partial search** using PostgreSQL `pg_trgm` (typing `fu…` finds *Fulanito*).
-- **Calendar invites via ICS** (works with Gmail/Outlook/iCal; no corporate suite required).
-- **Web UI (Next.js + Tailwind)** for quick search and listing (more screens to come).
-- Separation by tenant, codebase prepared for **RBAC** and **auditing**.
+## Overview
 
-**Future (AI-ready):**
-- OCR + chunk indexing (store offsets & bounding boxes).
-- Retrieval-Augmented Generation (RAG) to find exact paragraphs and open PDFs with highlights.
-- Privacy-first modes (no data retention, optional on-device inference).
+NovaFolio is a **smart client and document management system** that allows professionals (e.g., lawyers, consultants, or agencies) to store, search, and organize their client “folders” (`carpetas`) with powerful indexing, status tracking, and AI-assisted document retrieval.
+
+It combines a clean API, modern developer experience, and scalable architecture — serving both as a **production-grade prototype** and a **portfolio showcase** of back-end, front-end, and AI integration skills.
+
+---
+
+## Architecture
+
+| Layer | Description |
+|-------|--------------|
+| **API (`apps/api`)** | Node.js + TypeScript service built with ESM and `tsx` runtime. Provides folder/document management, search endpoints, and authentication. |
+| **Web (`apps/web`)** | React (planned) front-end using Vite + Tailwind + shadcn/ui for fast iteration and clean design. |
+| **Shared (`packages/*`)** | Type-safe domain logic shared between API and Web layers (types, utilities, validation). |
+| **Database** | PostgreSQL with Prisma ORM (migrations, type-safe queries, seed data). |
+| **AI Integration** | Planned embedding-based search and summarization (OpenAI / local LLM). |
+
+---
+
+## Features
+
+✅ Multi-client document storage (upload + metadata)  
+✅ Folder (“carpeta”) grouping with tags and status tracking  
+✅ Global search and filters (client name, document type, status)  
+✅ REST API with input validation (Zod)  
+✅ Type-safe monorepo via Nx + TypeScript project references  
+✅ Hot reload via `tsx watch`  
+Upcoming: AI-powered semantic search and automatic folder summaries
+
+---
+
+## Setup
+
+### 1️⃣ Install dependencies
+
+```bash
+npm install
+```
+
+### 2️⃣ Set environment variables
+
+Create a `.env` file in the root folder:
+
+```bash
+DATABASE_URL="postgresql://user:password@localhost:5432/novafolio"
+PORT=3000
+```
+
+### 3️⃣ Run development server
+
+```bash
+npm run dev
+```
+
+By default, the API runs on **http://localhost:3000**
 
 ---
 
 ## Tech Stack
-- **Frontend:** Next.js 15 (TypeScript, TailwindCSS, App Router, `src/` layout)
-- **Backend:** Fastify (TypeScript), Zod for validation (expand soon), Swagger UI
-- **Database:** PostgreSQL 16 with `pg_trgm` (prefix search) and `pgvector` (for future embeddings)
-- **Infra (local):** Docker Compose (Postgres; optional MinIO later)
+
+- **Node.js + TypeScript (ESM)**
+- **tsx** (fast TypeScript runtime)
+- **Nx Monorepo**
+- **PostgreSQL + Prisma**
+- **Zod** (validation)
+- **React + Vite** *(planned)*
+- **Tailwind + shadcn/ui** *(planned)*
+- **AI Layer (OpenAI / local embeddings)** *(planned)*
 
 ---
 
-## Prerequisites
-- **Node.js** 20+ and **npm**
-- **Git**
-- **Docker Desktop** (recommended for Option A)
-  - **Windows:** Ensure Docker Desktop is running (whale icon).  
-    - If you see `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified`, Docker isn’t running.
-    - Enable **WSL 2** engine: Docker Desktop → *Settings* → *General* → **Use the WSL 2 based engine**.
-    - Check: `docker version`, `docker info`.
+## Example API Routes
+
+| Method | Endpoint | Description |
+|---------|-----------|-------------|
+| `GET` | `/api/folders` | List all folders |
+| `POST` | `/api/folders` | Create new folder |
+| `GET` | `/api/folders/:id` | Retrieve a folder and its documents |
+| `POST` | `/api/folders/:id/upload` | Upload document to a folder |
 
 ---
 
-## Quickstart
+## Roadmap
 
-> Repo layout assumes:
-> ```
-> NovaFolio/
->   apps/
->     api/
->     web/
->   infra/
->     docker-compose.yml
->     postgres/init/0001_init.sql
->     postgres/init/0002_seed.sql
-> ```
-> If your structure differs, adapt paths accordingly.
+- [ ] Implement document upload with metadata
+- [ ] Integrate Prisma migrations and seeding
+- [ ] Add AI-powered semantic search (embeddings)
+- [ ] Build frontend dashboard with folder search and filters
+- [ ] Add authentication (JWT / Clerk)
+- [ ] Deploy backend to Railway / Render
 
-### Option A — Docker (recommended)
+---
 
-#### 1) Start PostgreSQL (Docker Compose)
-From the **project root**:
-```bash
-# macOS/Linux
-docker compose -f infra/docker-compose.yml up -d
+## Author
 
-# Windows (PowerShell)
-docker compose -f .\infra\docker-compose.yml up -d
-```
+**Andrés Lomelí Garduño**  
+📍 Senior AI Student @ Universidad Panamericana  
+🏅 ICPC World Finalist 2025  
+💡 Interned at Huawei (GPU/Parallel Systems) & Oracle (Kernel/eBPF)  
+🔗 [linkedin.com/in/andreslomeli](https://linkedin.com/in/andreslomeli)
 
-First run will pull the image ankane/pgvector:latest, create DB novafolio, and apply SQL scripts in infra/postgres/init/* (extensions + schema + optional seed).
+---
 
+## License
 
-```bash
-docker ps
-# Should list a container like "novafolio-postgres"
-
-docker logs -f novafolio-postgres
-```
-
-#### 2) Run the API
-```bash
-cd apps/api
-# If you don't have .env yet:
-# Windows (PowerShell)
-"PORT=4000`nDATABASE_URL=postgres://novafolio:novafolio@localhost:5432/novafolio`n" | Set-Content .\.env
-
-# Install deps & start
-npm install
-npm run dev
-```
-API: http://localhost:4000/healthz
-Swagger: http://localhost:4000/docs
-Sample search: http://localhost:4000/v1/clients?q=fu
-
-#### 3) Run the Web App
-```bash
-cd ../web
-# If you don't have .env.local yet:
-# Windows (PowerShell)
-"NEXT_PUBLIC_API_BASE_URL=http://localhost:4000`n" | Set-Content .\.env.local
-
-npm install
-npm run dev
-```
-Web: http://localhost:3000
-Try searching fu (should return demo clients if seed ran).
-
-## Environment Variables
-### API (apps/api/.env)
-```bash
-PORT=4000
-DATABASE_URL=postgres://novafolio:novafolio@localhost:5432/novafolio
-```
-### Web (apps/web/.env.local)
-```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
-```
-## What’s Missing / Next Steps
-- CRUD for clients/cases/documents/notes/events (API + Web forms, Zod validation).
-- File uploads + PDF preview (pdf.js) + S3/MinIO storage (versioning).
-- ICS generation + email delivery (SendGrid/SES).
-- RBAC per tenant and case; Audit logs (view/download traces).
-- OCR pipeline (Tesseract/PaddleOCR) and document_chunks with offsets/bboxes.
-- AI/RAG: embeddings, ANN (pgvector/Qdrant), cross-encoder re-rank, “open with highlight”.
-- Observability: OpenTelemetry, P50/P95 latencies, error budgets.
+MIT License © 2025 Andrés Lomelí Garduño
