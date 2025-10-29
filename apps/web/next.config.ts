@@ -1,23 +1,37 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // (Optional) proxy to avoid CORS, keep if you added it earlier
+  async rewrites() {
+    return [
+      { source: '/backend/:path*', destination: 'http://localhost:4000/:path*' },
+    ];
+  },
+
   webpack: (config, { isServer }) => {
+    // Make sure 'canvas' is never resolved/bundled
     config.resolve = config.resolve || {};
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
-      canvas: false,      // evitar que pdf.js pida el paquete 'canvas' de Node
+      canvas: false,
     };
-    config.resolve.fallback = {
-      ...(config.resolve.fallback || {}),
-      fs: false, path: false, crypto: false, stream: false,
-    };
+
+    // On the server bundle, mark it as external so webpack doesn't try to bundle it
     if (isServer) {
       config.externals = config.externals || [];
       config.externals.push({ canvas: 'commonjs canvas' });
     }
+
+    // Some pdfjs builds reference Node core modules; make sure we don't polyfill them
+    config.resolve.fallback = {
+      ...(config.resolve.fallback || {}),
+      fs: false,
+      path: false,
+      crypto: false,
+      stream: false,
+    };
+
     return config;
   },
-  // (opcional) silenciar el warning de dev-origins que viste:
-  // allowedDevOrigins: ['http://192.168.100.57:3000'],
 };
 
 export default nextConfig;

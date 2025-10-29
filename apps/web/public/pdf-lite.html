@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PDF</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.296/web/pdf_viewer.css" />
+  <style>
+    html,body { height:100%; margin:0; }
+    #toolbar { padding:8px; border-bottom:1px solid #e5e7eb; font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif; display:flex; gap:8px; align-items:center; }
+    #q { width:240px; padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; }
+    button { padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; cursor:pointer; }
+    #viewerContainer { position:absolute; inset:45px 0 0 0; overflow:auto; background:#fff; }
+    #viewer { min-height:100%; }
+    #error { position:absolute; top:8px; right:8px; color:#b91c1c; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <button id="prev">Prev</button>
+    <span id="pageNum">1</span> /
+    <span id="pageCount">-</span>
+    <button id="next">Next</button>
+
+    <span style="margin-left:12px"></span>
+    <button id="zoomOut">-</button>
+    <span>Zoom</span>
+    <button id="zoomIn">+</button>
+    <button id="zoomReset">Reset</button>
+
+    <form id="findForm" style="margin-left:12px; display:flex; gap:6px">
+      <input id="q" placeholder="Find text…" />
+      <button type="submit">Find</button>
+    </form>
+    <div id="error"></div>
+  </div>
+
+  <div id="viewerContainer" class="viewerContainer">
+    <div id="viewer" class="pdfViewer"></div>
+  </div>
+
+  <script type="module">
+    import * as pdfjs from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.296/build/pdf.mjs';
+    import * as pdfjsViewer from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.296/web/pdf_viewer.mjs';
+
+    // Worker from CDN (keeps main thread free)
+    pdfjs.GlobalWorkerOptions.workerSrc =
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs';
+
+    const $ = (id) => document.getElementById(id);
+    const errorEl = $('error');
+
+    function showError(msg) {
+      errorEl.textContent = msg ?? 'Unknown error';
+    }
+
+    const params = new URLSearchParams(location.search);
+    const file = params.get('file');
+    const initialQuery = params.get('search') || '';
+
+    if (!file) {
+      showError('Missing ?file= URL');
+      throw new Error('Missing ?file=');
+    }
+
+    const container  = $('viewerContainer');
+    const viewerElem = $('viewer');
+
+    const eventBus = new pdfjsViewer.EventBus();
+    const linkService = new pdfjsViewer.PDFLinkService({ eventBus });
+    const findController = new pdfjsViewer.PDFFindController({ eventBus, linkService });
+
+    const viewer = new pdfjsViewer.PDFViewer({
+      container,
+      viewer: viewerElem,
+      linkService,
+      findController,
+      textLayerMode: 2, // build text layer for selection/search
+    });
+    linkService.setViewer(viewer);
+
+    // Toolbar wiring
+    $('prev').onclick = () => viewer.currentPageNumber = Math.max(1, viewer.currentPageNumber - 1);
+    $('next').onclick = () => viewer.currentPageNumber = Math.min(viewer.pagesCount, viewer.currentPageNumber + 1);
+    $('zoomIn').onclick = () => viewer.currentScale += 0.1;
+    $('zoomOut').onclick = () => viewer.currentScale = Math.max(0.25, viewer.currentScale - 0.1);
+    $('zoomReset').onclick = () => viewer.currentScale = 1.0;
+    $('findForm').onsubmit = (e) => {
+      e.preventDefault();
+      eventBus.dispatch('find', {
+        query: $('q').value || '',
+        highlightAll: true,
+        caseSensitive: false,
+        entireWord: false,
+        findPrevious: false,
+        type: 'again',
+      });
+    };
+
+    eventBus.on('pagesinit', () => {
+      $('pageCount').textContent = String(viewer.pagesCount);
+      $('pageNum').textContent = String(viewer.currentPageNumber);
+      viewer.currentScale = 'page-width';
+      if (initialQuery) {
+        $('q').value = initialQuery;
+        eventBus.dispatch('find', { query: initialQuery, highlightAll: true, caseSensitive: false, type: 'again' });
+      }
+    });
+
+    eventBus.on('pagechanging', (e) => {
+      $('pageNum').textContent = String(e.pageNumber);
+    });
+
+    // Allow parent window to control find/goto
+    window.addEventListener('message', (ev) => {
+      const d = ev.data || {};
+      if (d.type === 'find') {
+        $('q').value = d.q || '';
+        eventBus.dispatch('find', { query: $('q').value, highlightAll: true, caseSensitive: false, type: 'again' });
+      } else if (d.type === 'goto') {
+        viewer.currentPageNumber = Math.max(1, Math.min(viewer.pagesCount, +d.page || 1));
+      }
+    });
+
+    // Load PDF
+    try {
+      const loadingTask = pdfjs.getDocument({ url: file, withCredentials: false });
+      const pdfDoc = await loadingTask.promise;
+      viewer.setDocument(pdfDoc);
+      linkService.setDocument(pdfDoc, null);
+    } catch (err) {
+      console.error('pdf.js failed:', err);
+      showError(`Failed to load PDF: ${err?.message || err?.name || String(err)}`);
+    }
+  </script>
+</body>
+</html>
