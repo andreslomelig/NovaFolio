@@ -6,13 +6,59 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { ensureStorageDir, pathFromStorageUrl } from "../storage";
 import { z } from "zod";
+import { extractPdfPages, extractDocxPages } from "../services/extract";
 
 function sanitize(name: string) {
   return path.basename(name).replace(/[^\w.\-]+/g, "_");
 }
 
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+/**
+ * Indexa (o reindexa) un documento en doc_pages.
+ * - Lee el archivo físico (absPath)
+ * - Extrae texto por páginas según mime
+ * - Limpia e inserta en doc_pages
+ */
+async function indexDocumentPages(params: {
+  docId: string;
+  mime: string;
+  absPath: string;
+  log: FastifyInstance["log"];
+}) {
+  const { docId, mime, absPath, log } = params;
+  try {
+    const buf = await fs.promises.readFile(absPath);
+
+    let pages: string[] = [];
+    if (mime?.startsWith("application/pdf")) {
+      pages = await extractPdfPages(buf);
+    } else if (mime === DOCX_MIME) {
+      pages = await extractDocxPages(buf);
+    } else {
+      pages = []; // otros tipos no indexamos de momento
+    }
+
+    await pool.query(`DELETE FROM doc_pages WHERE doc_id=$1`, [docId]);
+
+    for (let i = 0; i < pages.length; i++) {
+      const pageNo = i + 1;
+      const text = pages[i] ?? "";
+      await pool.query(
+        `INSERT INTO doc_pages (doc_id, page, text) VALUES ($1,$2,$3)`,
+        [docId, pageNo, text]
+      );
+    }
+
+    log.info({ docId, pages: pages.length }, "indexDocumentPages: done");
+  } catch (e: any) {
+    log.warn({ err: e, docId }, "indexDocumentPages: failed");
+  }
+}
+
 export async function documentsRoutes(app: FastifyInstance) {
-  // Listar (con search opcional ?q=)
+  // Listar (con search opcional ?q=) por case_id
   app.get("/v1/documents", async (req, reply) => {
     const { case_id, q } = (req.query as { case_id?: string; q?: string }) || {};
     if (!case_id) return reply.status(400).send({ error: "case_id required" });
@@ -43,7 +89,7 @@ export async function documentsRoutes(app: FastifyInstance) {
     return { items: rows };
   });
 
-  // Upload PDF
+  // Upload (PDF + DOCX) con indexación de páginas
   app.post("/v1/documents/upload", async (req, reply) => {
     const tenantId = await getDefaultTenantId();
     const mp = await req.file();
@@ -56,22 +102,20 @@ export async function documentsRoutes(app: FastifyInstance) {
     if (!ok.rowCount) return reply.status(404).send({ error: "case_not_found" });
 
     const mime = mp.mimetype || "application/octet-stream";
-    const allowed = [
-      "application/pdf",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // DOCX
-    ];
-    if (!allowed.some(a => mime.startsWith(a) || mime === a)) {
+    const allowed = ["application/pdf", DOCX_MIME];
+    if (!allowed.some((a) => mime.startsWith(a) || mime === a)) {
       return reply.status(415).send({ error: "unsupported_media_type" });
     }
 
     const storageDir = ensureStorageDir();
     const id = crypto.randomUUID();
-    const safeName = sanitize(mp.filename || "document.pdf");
+    const safeName = sanitize(mp.filename || (mime === DOCX_MIME ? "document.docx" : "document.pdf"));
     const baseName = `${id}_${safeName}`;
     const destPath = path.join(storageDir, baseName);
     const publicUrl = `/files/${baseName}`;
 
     await pipeline(mp.file, fs.createWriteStream(destPath));
+
     const ins = await pool.query<{ id: string }>(
       `
       INSERT INTO documents (tenant_id, case_id, name, mime, storage_url, sha256, version, created_by)
@@ -80,7 +124,20 @@ export async function documentsRoutes(app: FastifyInstance) {
       `,
       [tenantId, case_id, safeName, mime, publicUrl]
     );
-    return reply.status(201).send({ id: ins.rows[0].id, url: publicUrl });
+
+    const newId = ins.rows[0].id;
+
+    // Indexación en background (no bloquea la respuesta)
+    setImmediate(() => {
+      indexDocumentPages({
+        docId: newId,
+        mime,
+        absPath: destPath,
+        log: app.log,
+      }).catch((e) => app.log.warn({ e, newId }, "indexDocumentPages: background failed"));
+    });
+
+    return reply.status(201).send({ id: newId, url: publicUrl });
   });
 
   // Get por id
@@ -112,8 +169,7 @@ export async function documentsRoutes(app: FastifyInstance) {
     return reply.status(204).send();
   });
 
-
-  // DELETE (db + file no-bloqueante + logs)
+  // DELETE (db + file no-bloqueante)
   app.delete("/v1/documents/:id", async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
@@ -129,11 +185,11 @@ export async function documentsRoutes(app: FastifyInstance) {
       const storageUrl = sel.rows[0].storage_url;
       const absPath = pathFromStorageUrl(storageUrl);
 
-      // 2) borrar en DB primero (idempotente respecto al archivo)
+      // 2) borrar en DB primero (ON DELETE CASCADE limpiará doc_pages si el FK está así)
       const del = await pool.query(`DELETE FROM documents WHERE id=$1 AND tenant_id=$2`, [id, tenantId]);
       if (!del.rowCount) return reply.status(404).send({ error: "not_found" });
 
-      // 3) borrar archivo en background, sin bloquear la respuesta
+      // 3) borrar archivo en background
       setImmediate(() => {
         try {
           if (fs.existsSync(absPath)) fs.rmSync(absPath);
@@ -150,6 +206,7 @@ export async function documentsRoutes(app: FastifyInstance) {
     }
   });
 
+  // Render HTML de DOCX (preview)
   app.get("/v1/documents/:id/html", async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
@@ -162,7 +219,7 @@ export async function documentsRoutes(app: FastifyInstance) {
       if (!sel.rowCount) return reply.status(404).send({ error: "not_found" });
 
       const { storage_url, mime, name } = sel.rows[0];
-      if (mime !== "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+      if (mime !== DOCX_MIME) {
         return reply.status(415).send({ error: "not_docx" });
       }
 
@@ -175,7 +232,7 @@ export async function documentsRoutes(app: FastifyInstance) {
           "p[style-name='Heading 2'] => h2:fresh"
         ]
       });
-      const html = result.value; // string de HTML
+      const html = result.value; // HTML string
 
       const tpl = `
         <!doctype html>
@@ -204,8 +261,30 @@ export async function documentsRoutes(app: FastifyInstance) {
     }
   });
 
+  // Reindexar manualmente un documento existente (útil si cambiaste extractor)
+  app.post("/v1/documents/:id/reindex", async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      const tenantId = await getDefaultTenantId();
+
+      const q = await pool.query<{ storage_url: string; mime: string }>(
+        `SELECT storage_url, mime FROM documents WHERE id=$1 AND tenant_id=$2`,
+        [id, tenantId]
+      );
+      if (!q.rowCount) return reply.status(404).send({ error: "not_found" });
+
+      const { storage_url, mime } = q.rows[0];
+      const absPath = pathFromStorageUrl(storage_url);
+
+      await indexDocumentPages({ docId: id, mime, absPath, log: app.log });
+      return reply.status(202).send({ ok: true });
+    } catch (e) {
+      req.log.error({ e }, "documents.reindex: error");
+      return reply.status(500).send({ error: "internal_error" });
+    }
+  });
+
   function escapeHtml(s: string) {
     return s.replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c] as string));
   }
-
 }

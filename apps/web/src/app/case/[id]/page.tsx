@@ -2,21 +2,29 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useSearchParams } from 'next/navigation';
-import { useRouter } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 
 type CaseRec = { id: string; client_id: string; title: string; status: 'open'|'closed'; created_at: string };
-type Client = { id: string; name: string };
-type Doc  = { id: string; name: string; mime: string; storage_url: string; created_at: string };
+type Client  = { id: string; name: string };
+type Doc     = { id: string; name: string; mime: string; storage_url: string; created_at: string };
+
+type SearchHit = {
+  doc_id: string;
+  page: number;
+  snippet: string;
+  doc_name: string;
+  case_id: string;
+};
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';
 
 export default function CasePage() {
   const params = useParams<{ id: string }>();
   const sp = useSearchParams();
+  const router = useRouter();
+
   const caseId = params.id;
   const clientFromQuery = sp.get('client') || '';
-  const router = useRouter();
 
   const [rec, setRec] = useState<CaseRec | null>(null);
   const [client, setClient] = useState<Client | null>(null);
@@ -24,26 +32,35 @@ export default function CasePage() {
   // status editor
   const [status, setStatus] = useState<'open'|'closed'>('open');
   const [savingStatus, setSavingStatus] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   // file search + list + upload
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState('');              // búsqueda por nombre de archivo
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   // inline rename/delete
   const [editingId, setEditingId] = useState<string>('');
   const [editingName, setEditingName] = useState<string>('');
   const [busyId, setBusyId] = useState<string>('');
 
+  // delete case
   const [deletingCase, setDeletingCase] = useState(false);
+
+  // errores generales
+  const [error, setError] = useState<string | null>(null);
+
+  // ---------- NUEVO: BÚSQUEDA DE CONTENIDO EN EL CASO ----------
+  const [qContent, setQContent] = useState('');                // búsqueda de texto dentro de los documentos
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [loadingHits, setLoadingHits] = useState(false);
+  const [errHits, setErrHits] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       setError(null);
-      // load case
+      // Cargar caso
       const r = await fetch(`${API}/v1/cases/${caseId}`).catch(()=>null);
       if (r?.ok) {
         const j = await r.json() as CaseRec;
@@ -84,7 +101,7 @@ export default function CasePage() {
     }
   }
 
-  // status change (PATCH /v1/cases/:id)
+  // Cambiar estado del caso
   async function saveStatus(newStatus: 'open'|'closed') {
     setSavingStatus(true); setError(null);
     try {
@@ -102,7 +119,7 @@ export default function CasePage() {
     }
   }
 
-  // upload
+  // Subir archivo
   async function uploadDoc(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
@@ -124,6 +141,7 @@ export default function CasePage() {
     }
   }
 
+  // Borrar caso
   async function deleteCase() {
     if (!rec) return;
     if (!confirm(`Delete case "${rec.title}" and all its documents? This cannot be undone.`)) return;
@@ -140,18 +158,15 @@ export default function CasePage() {
     }
   }
 
-
-  // rename/delete
+  // Renombrar
   function startRename(d: Doc) {
     setEditingId(d.id);
     setEditingName(d.name);
   }
-
   function cancelRename() {
     setEditingId('');
     setEditingName('');
   }
-
   async function saveRename(id: string) {
     if (!editingName.trim()) return;
     setBusyId(id); setError(null);
@@ -167,10 +182,11 @@ export default function CasePage() {
     } catch (e:any) {
       setError(e.message || 'Rename failed');
     } finally {
-      setBusyId('');   // <- IMPORTANT: release the row
+      setBusyId('');   // liberar fila
     }
   }
 
+  // Borrar documento
   async function deleteDoc(id: string) {
     if (!confirm('Delete this document?')) return;
     setBusyId(id); setError(null);
@@ -181,7 +197,24 @@ export default function CasePage() {
     } catch (e:any) {
       setError(e.message || 'Delete failed');
     } finally {
-      setBusyId('');   // <- IMPORTANT: release the row
+      setBusyId('');   // liberar fila
+    }
+  }
+
+  // ---------- NUEVO: buscar dentro del caso (contenido) ----------
+  async function searchContent() {
+    if (!qContent.trim()) { setHits([]); return; }
+    setLoadingHits(true); setErrHits(null);
+    try {
+      const url = `${API}/v1/search?q=${encodeURIComponent(qContent)}&case_id=${encodeURIComponent(caseId)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Search failed (${res.status})`);
+      const j = await res.json() as { items: SearchHit[] };
+      setHits(j.items || []);
+    } catch (e:any) {
+      setErrHits(e.message || 'Search failed');
+    } finally {
+      setLoadingHits(false);
     }
   }
 
@@ -208,17 +241,70 @@ export default function CasePage() {
 
           {client && <Link href={`/client/${client.id}`} className="btn">Back to {client.name}</Link>}
           <Link href="/clients" className="btn">Clients</Link>
-            <button
-              className="btn btn-danger"
-              onClick={deleteCase}
-              disabled={deletingCase}
-            >
-              {deletingCase ? 'Deleting…' : 'Delete case'}
+          <button
+            className="btn btn-danger"
+            onClick={deleteCase}
+            disabled={deletingCase}
+          >
+            {deletingCase ? 'Deleting…' : 'Delete case'}
           </button>
         </div>
       </div>
 
-      {/* Search + Upload + List */}
+      {/* -------- Búsqueda de contenido (caso) -------- */}
+      <section className="card">
+        <div className="card-header">
+          <div className="text-sm font-semibold">Search inside this case</div>
+          <p className="help mt-1">Search text across all documents in this case. Click to open at the right page.</p>
+        </div>
+        <div className="card-body">
+          <form
+            onSubmit={(e)=>{ e.preventDefault(); searchContent(); }}
+            className="flex flex-col gap-2 sm:flex-row"
+          >
+            <input
+              className="input"
+              placeholder="Find text across documents…"
+              value={qContent}
+              onChange={(e)=>setQContent(e.target.value)}
+            />
+            <div className="flex items-center gap-2">
+              <button className="btn btn-primary" disabled={loadingHits}>
+                {loadingHits ? 'Searching…' : 'Search'}
+              </button>
+              {errHits && <span className="text-xs text-rose-600">{errHits}</span>}
+            </div>
+          </form>
+
+          <div className="mt-4 space-y-2">
+            {hits.map((h, i) => (
+              <div key={`${h.doc_id}-${h.page}-${i}`} className="rounded border p-3 text-sm flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{h.doc_name} — page {h.page}</div>
+                  <div className="text-xs text-slate-600">
+                    {h.snippet?.replace(/\s+/g,' ').slice(0,180)}…
+                  </div>
+                </div>
+                <button
+                  className="btn"
+                  onClick={() =>
+                    router.push(
+                      `/doc/${h.doc_id}?case=${caseId}&q=${encodeURIComponent(qContent)}&page=${h.page}`
+                    )
+                  }
+                >
+                  Open
+                </button>
+              </div>
+            ))}
+            {!loadingHits && hits.length === 0 && qContent && (
+              <div className="text-xs text-slate-500">No results</div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* -------- Search by filename + Upload + List -------- */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Search files + list */}
         <section className="card lg:col-span-2">
@@ -255,7 +341,6 @@ export default function CasePage() {
                         >
                           {busyId === d.id ? 'Saving…' : 'Save'}
                         </button>
-
                         <button
                           className="btn"
                           onClick={cancelRename}
@@ -266,13 +351,13 @@ export default function CasePage() {
                       </>
                     ) : (
                       <>
-                        {/* View inside the app (PDF viewer). Include case param for fallback */}
+                        {/* Ver en el visor (incluye case param como fallback) */}
                         <Link className="link-action" href={`/doc/${d.id}?case=${caseId}`}>View</Link>
 
-                        {/* Open the raw file in a new tab */}
+                        {/* Abrir el archivo crudo en nueva pestaña */}
                         <a className="link-action" href={`${API}${d.storage_url}`} target="_blank" rel="noreferrer">Open</a>
 
-                        {/* Enter rename mode */}
+                        {/* Renombrar */}
                         <button
                           className="link-action"
                           onClick={() => startRename(d)}
@@ -281,7 +366,7 @@ export default function CasePage() {
                           Rename
                         </button>
 
-                        {/* Delete (destructive button) */}
+                        {/* Borrar (destructivo) */}
                         <button
                           className="btn btn-danger"
                           title="Delete file"
@@ -292,7 +377,6 @@ export default function CasePage() {
                         </button>
                       </>
                     )}
-
                   </div>
                 </div>
               ))}
@@ -307,7 +391,7 @@ export default function CasePage() {
         <section className="card">
           <div className="card-header">
             <div className="text-sm font-semibold">Upload files</div>
-            <p className="help mt-1">PDF only (demo). Drag & drop coming soon.</p>
+            <p className="help mt-1">PDF and DOCX supported.</p>
           </div>
           <div className="card-body">
             <form onSubmit={uploadDoc} className="space-y-3">

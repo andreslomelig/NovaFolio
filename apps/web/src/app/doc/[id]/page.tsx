@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
+// RPV (React PDF Viewer) se carga solo en cliente
 const RpvViewer = dynamic(() => import('@/components/RpvViewer'), { ssr: false });
 
 type DocMeta = {
@@ -26,17 +27,25 @@ export default function DocPage() {
   const caseId = sp.get('case') || '';
   const initialQuery = sp.get('q') || '';
 
+  //leer `page` de la URL y normalizar (1-based)
+  const pageParamRaw = sp.get('page');                                   
+  const initialPage = pageParamRaw                                      
+    ? Math.max(1, parseInt(pageParamRaw, 10) || 1)
+    : undefined;
+
   const [doc, setDoc] = useState<DocMeta | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setError(null);
     try {
+      // Lookup directo por id
       let res = await fetch(`${API}/v1/documents/${docId}`);
       if (res.ok) {
         setDoc((await res.json()) as DocMeta);
         return;
       }
+      // Fallback: buscar en el caso por si el endpoint directo 404
       if (res.status === 404 && caseId) {
         const list = await fetch(`${API}/v1/documents?case_id=${encodeURIComponent(caseId)}`);
         if (list.ok) {
@@ -62,11 +71,11 @@ export default function DocPage() {
   const isPdf  = !!doc?.mime?.startsWith('application/pdf');
   const isDocx = doc?.mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
-  // Same-origin proxy avoids CORS: /backend + storage_url
+  // Proxy same-origin para evitar CORS: /backend + storage_url
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const proxiedFileUrl = doc ? `${origin}/backend${doc.storage_url}` : '';
 
-  const docxHtmlUrl = doc ? `${API}/v1/documents/${docId}/html` : '';
+  const docxHtmlUrl  = doc ? `${API}/v1/documents/${docId}/html` : '';
   const directFileUrl = doc ? `${API}${doc.storage_url}` : '';
 
   return (
@@ -89,10 +98,16 @@ export default function DocPage() {
         </div>
       )}
 
-      {/* PDF via react-pdf-viewer */}
-      {doc && isPdf && <RpvViewer fileUrl={proxiedFileUrl} initialQuery={initialQuery} />}
+      {/* PDF con React-PDF-Viewer */}
+      {doc && isPdf && (
+        <RpvViewer
+          fileUrl={proxiedFileUrl}
+          initialQuery={initialQuery}
+          initialPage={initialPage}    
+        />
+      )}
 
-      {/* DOCX preview (same as before) */}
+      {/* DOCX preview (igual que antes) */}
       {doc && isDocx && (
         <div className="card">
           <div className="card-header"><div className="text-sm font-semibold">DOCX preview</div></div>

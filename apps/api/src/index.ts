@@ -12,6 +12,7 @@ import { casesRoutes } from "./routes/cases";
 import { documentsRoutes } from "./routes/documents";
 import { pingDb, getDefaultTenantId } from "./db";
 import { ensureStorageDir } from "./storage"; 
+import searchRoutes from './routes/search';
 
 config();
 
@@ -29,6 +30,7 @@ async function main() {
   await app.register(swagger, { openapi: { info: { title: "NovaFolio API", version: "0.1.0" } } });
   await app.register(swaggerUi, { routePrefix: "/docs" });
   await app.register(multipart);
+  await app.register(searchRoutes);
 
   // ⬇️ Resuelve SIEMPRE a ruta absoluta y crea el directorio
   const storageDir = ensureStorageDir();
