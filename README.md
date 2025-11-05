@@ -38,10 +38,10 @@ NovaFolio/
 
 ```mermaid
 flowchart LR
-A[Web App (Next.js 15, Tailwind)] --> B[/API (Fastify, TypeScript, Zod)/]
-B --> C[(PostgreSQL 16<br/>pg_trgm enabled, AI-ready)]
-B --> D[(Local Object Store: /files)]
-B -.-> E[(S3/MinIO) *future*]
+  A["Web App (Next.js 15, Tailwind)"] --> B["API (Fastify, TypeScript, Zod)"]
+  B --> C["PostgreSQL 16\npg_trgm enabled, AI-ready"]
+  B --> D["Local Object Store: /files"]
+  B -.-> E["S3/MinIO (future)"]
 ```
 
 - **Web (`apps/web`)**: Next.js App Router. Uses **react‑pdf‑viewer** with pdf.js **3.x**.  
