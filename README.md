@@ -1,6 +1,6 @@
 # NovaFolio — Intelligent Client & Document Management (PDF/DOCX, Search, AI‑ready)
 
-> **Full‑stack, TypeScript‑first** portfolio project that feels like a real product.  
+> **Full‑stack, TypeScript‑first** portfolio project.  
 > Upload, organize, **search**, and open client documents; clean API, modern React UI, and a clear path to **AI** features.
 
 ---
