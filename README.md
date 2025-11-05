@@ -52,7 +52,7 @@ B -.-> E[(S3/MinIO) *future*]
 
 ---
 
-## 🔧 Prerequisites
+## Prerequisites
 
 - **Node.js 18+** (tested with 22.x)
 - **Docker Desktop** (to run Postgres)
@@ -65,7 +65,7 @@ B -.-> E[(S3/MinIO) *future*]
 ### 0) Clone
 
 ```bash
-git clone <your-fork-or-repo-url> NovaFolio
+git clone https://github.com/andreslomelig/NovaFolio.git
 cd NovaFolio
 ```
 
@@ -79,7 +79,7 @@ docker compose -f infra/docker-compose.yml up -d
 ```
 
 > **NOTE (Postgres service name)**  
-> _Si tu servicio no se llama `db`, reemplázalo por el nombre correcto (p.ej. `postgres`)._  
+> _If your service name it's not `db`, replace it for the correct one (p.ej. `postgres`)._  
 > Several commands below use `db` as the service name—adjust as needed based on your `docker-compose.yml`.
 
 If you need to create the database/role explicitly (depends on your compose), exec into the container and run:
@@ -94,13 +94,13 @@ docker compose -f .\infra\docker-compose.yml exec -it db psql -U <DB_USER> -c "C
 
 ### 2) Create the **search** table + extensions (one time)
 
-We maintain migrations as plain SQL for now. Create a file (if it doesn’t exist yet):
+We maintain migrations as plain SQL for now. Open file:
 
 ```
 infra/sql/2025-10-29_doc_pages.sql
 ```
 
-Put this content inside (change `'english'` to `'spanish'` if most documents are in Spanish):
+(change `'english'` to `'spanish'` if most documents are in Spanish):
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
